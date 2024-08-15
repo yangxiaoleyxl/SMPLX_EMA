@@ -41,7 +41,7 @@ def matrix_to_rotation_6d(matrix: np.ndarray) -> np.ndarray:
     return matrix[..., :2, :].reshape(*matrix.shape[:-2], 6)
 
 
-video_num = 'demo00009'  
+video_num = 'demo00048'  
 base_path = '/Users/lxy/Desktop/yxl/results'
 
 # 设置路径 
@@ -108,7 +108,7 @@ def exponential_moving_average(data, alpha):
         ema[t] = alpha * data[t] + (1 - alpha) * ema[t - 1]
     return ema
 
-def exponential_moving_average_tensor(tensor, alpha):
+def exponential_moving_average_tensor(tensor, alpha, body_pose_flag=None):
     """
     对三维张量进行指数平滑平均（EMA）。
 
@@ -120,15 +120,23 @@ def exponential_moving_average_tensor(tensor, alpha):
     ndarray: 形状为 (100, 15, 3) 的 EMA 数据
     """
     ema_tensor = np.zeros_like(tensor)
-    T, D1, D2 = tensor.shape
+    T, D1, D2 = tensor.shape 
+    print(f"T is {T}, D1 is {D1}, D2 is {D2}")
 
-    # 对每个位置的二维向量进行 EMA 计算
-    for i in range(D1):
-        for j in range(D2):
-            ema_tensor[:, i, j] = exponential_moving_average(tensor[:, i, j], alpha)
+    # 对每个位置的二维向量进行 EMA 计算 
+    if body_pose_flag: 
+        for i in range(D1):  
+            for j in range(D2):   
+                if i in [2]:
+                    ema_tensor[:, i, j] = exponential_moving_average(tensor[:, i, j], 0.1)  
+                else:  
+                    ema_tensor[:, i, j] = exponential_moving_average(tensor[:, i, j], alpha)  
+    else:  
+        for i in range(D1):  
+            for j in range(D2): 
+                ema_tensor[:, i, j] = exponential_moving_average(tensor[:, i, j], alpha) 
 
     return ema_tensor 
-
 
 def normalize(vectors, axis=-1):
     """
@@ -201,8 +209,9 @@ file_path = f'{base_path}/{video_num}/combined_data_6d.npz'
 data = np.load(file_path)
 
 # 平滑因子
-alpha = 0.9  
-alpha1 = 0.3
+alpha = 0.8 
+alpha_global_orient = 0.1  
+alpha_body_pose = 0.1
 
 # 初始化存储 EMA 结果的字典
 ema_data = {}
@@ -210,15 +219,23 @@ ema_data = {}
 # 对每个键的数据进行 EMA 计算
 for key in data: 
     # print(key) 
-    if key in ['global_orient', 'body_pose']:   # 如果是 ‘global_orient’, 使用 0.1 的平滑因子 
+    if key in ['global_orient']:   # 如果是 ‘global_orient’, 使用 0.1 的平滑因子  
         # 获取三维数据
-        three_dimensional_data = data[key]
+        three_dimensional_data = data[key] 
+        print(f"{key} data shape is {three_dimensional_data.shape}")  
         # 计算 EMA,
-        ema_result = exponential_moving_average_tensor(three_dimensional_data, alpha1)  
-    else: 
+        ema_result = exponential_moving_average_tensor(three_dimensional_data, alpha_global_orient)   
+    elif key in ['body_pose']:   # 如果是 ‘body_pose’, 对 2 5 8 使用 0.1 的平滑因子  
         # 获取三维数据
-        three_dimensional_data = data[key]
-        # 计算 EMA
+        three_dimensional_data = data[key] 
+        print(f"{key} data shape is {three_dimensional_data.shape}")  
+        # 计算 EMA, 
+        ema_result = exponential_moving_average_tensor(three_dimensional_data, alpha, body_pose_flag=True)  
+    else: 
+        # 获取三维数据 
+        three_dimensional_data = data[key] 
+        print(f"{key} data shape is {three_dimensional_data.shape}")  
+        # 计算 EMA 
         ema_result = exponential_moving_average_tensor(three_dimensional_data, alpha)  
         # print(ema_result.shape)   
 
